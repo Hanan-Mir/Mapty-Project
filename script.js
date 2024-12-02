@@ -18,6 +18,13 @@ class workouts{
         this.distance=distance;
         this.duration=duration;
     }
+    description(){
+        // prettier-ignore
+const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+        this.description=`${this.type[0].toUpperCase()+this.type.slice(1)} on ${months[this.date.getMonth()]} ${this.date.getDate()}`;
+    }
+
 }
 class Running extends workouts{
     type='running';
@@ -25,6 +32,7 @@ class Running extends workouts{
         super(coords,distance,duration);
         this.cadence=cadence;
         this.calcPace();
+        this.description();
     }
     calcPace(){
         this.pace=this.duration/this.distance;
@@ -36,6 +44,7 @@ class Cycling extends workouts{
     constructor(coords,distance,duration,elevation){
         super(coords,distance,duration);
         this.elevation=elevation;
+        this.description();
         this.calcSpeed();
     }
 calcSpeed(){
@@ -58,10 +67,11 @@ class App{
         this._getPosition();
         this._showForm.bind(this);
         this._toggleeElevationField.bind(this);
+        this._getBrowserStorage();
         //Event Listners
         inputType.addEventListener('change',this._toggleeElevationField.bind(this));
         form.addEventListener('submit',this._newWorkout.bind(this));
-
+containerWorkouts.addEventListener('click',this._focusOnPopUp.bind(this));
     }
     _getPosition(){
         navigator.geolocation.getCurrentPosition(this._loadMap.bind(this),function(){
@@ -72,19 +82,27 @@ class App{
         let {latitude}=position.coords;
         let {longitude}=position.coords;
        this.#coordinates=[latitude,longitude];
+       
        this.#map = L.map('map').setView(this.#coordinates, 13);
     
     L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(this.#map); 
     this.#map.on('click',this._showForm.bind(this));
+        this.workouts.forEach((el)=>{
+            this._moveToPopup(el);
+                })
     }
     _showForm(mapE){
             form.classList.remove('hidden');
             inputDistance.focus();
         this.#mapEvent=mapE;
     }
-    _hideForm(){}
+    _hideForm(){
+        form.style.display='none';
+        form.classList.add('hidden');
+        setTimeout(()=>form.style.display='grid',1000);
+    }
     _toggleeElevationField(){
             inputElevation.closest('.form__row').classList.toggle('form__row--hidden');
             inputCadence.closest('.form__row').classList.toggle('form__row--hidden');
@@ -119,9 +137,14 @@ if(checkValid(distance,duration,cadence)&&checkPositive(distance,duration)){
 }
 }
 console.log(this.workout);
+console.log(this.workouts);
 //Add new object to the workout array
 this.workouts.push(this.workout);
+this._workoutDescription(this.workout);
 this._moveToPopup(this.workout);
+this._setBrowserStorage();
+this._hideForm();
+
     }
     _moveToPopup(workout){
             inputCadence.value=inputDistance.value=inputDuration.value=inputElevation.value='';
@@ -133,11 +156,78 @@ this._moveToPopup(this.workout);
                     className:`${workout.type}-popup .leaflet-popup-content-wrapp`,
                     closeOnClick:false,
                     autoClose:false
-                })).bindPopup(wType)
+                })).bindPopup(workout.description)
                 .openPopup();   
 
     }
-    reset(){}
+    _workoutDescription(workout){
+        console.log(workout);
+        let html=`<li class="workout workout--${workout.type}" data-id="${workout.id}">
+          <h2 class="workout__title">${workout.description}</h2>
+          <div class="workout__details">
+            <span class="workout__icon">${workout.type==='running'?'🏃‍♂️':'🚴‍♀️'}</span>
+            <span class="workout__value">${workout.distance}</span>
+            <span class="workout__unit">km</span>
+          </div>
+          <div class="workout__details">
+            <span class="workout__icon">⏱</span>
+            <span class="workout__value">${workout.duration}</span>
+            <span class="workout__unit">min</span>
+          </div>`
+          if(workout.type==='running'){
+            html+=`<div class="workout__details">
+            <span class="workout__icon">⚡️</span>
+            <span class="workout__value">${workout.pace.toFixed(2)}</span>
+            <span class="workout__unit">min/km</span>
+          </div>
+          <div class="workout__details">
+            <span class="workout__icon">🦶🏼</span>
+            <span class="workout__value">${workout.cadence}</span>
+            <span class="workout__unit">spm</span>
+          </div>`
+          }
+          if(workout.type=='cycling'){
+            html+=`<div class="workout__details">
+            <span class="workout__icon">⚡️</span>
+            <span class="workout__value">${workout.speed.toFixed(1)}</span>
+            <span class="workout__unit">km/h</span>
+          </div>
+          <div class="workout__details">
+            <span class="workout__icon">⛰</span>
+            <span class="workout__value">${workout.elevation}</span>
+            <span class="workout__unit">m</span>
+          </div>`
+          }
+          form.insertAdjacentHTML('afterend',html);
+    }
+    _focusOnPopUp(e){
+const workoutEl=e.target.closest('.workout');
+if(!workoutEl) return;
+const popupEl=this.workouts.find((el)=>el.id===workoutEl.dataset.id);
+console.log(popupEl);
+this.#map.setView(popupEl.coords,13,{
+    animate:true,
+    pan:{
+        duration:1
+    }
+})
+    }
+    _setBrowserStorage(){
+        console.log(this.workouts);
+        localStorage.setItem('workout',JSON.stringify(this.workouts));
+    }
+    _getBrowserStorage(){
+    let data=JSON.parse(localStorage.getItem('workout'));
+    if(!data) return;
+    this.workouts=data;
+    this.workouts.forEach((el)=>{
+this._workoutDescription(el);
+    })
+    }
+    
+    reset(){
+        localStorage.removeItem('workout');
+    }
 }
 let app=new App();
 
